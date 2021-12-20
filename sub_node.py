@@ -37,6 +37,8 @@ import rospy
 import cv2
 import sys
 from std_msgs.msg import Int16
+from kanu_msgs.msg import BoundingBoxIXYWH
+from kanu_msgs.msg import BoundingBoxIXYWHArray
 import numpy as np
 
 ##dataset
@@ -68,6 +70,8 @@ from utils.torch_utils import torch_distributed_zero_first
 
 
 def detect(opt):
+    pub = rospy.Publisher('detect_results', BoundingBoxIXYWHArray, queue_size=10)
+
     out, source, yolo_weights, deep_sort_weights, show_vid, save_vid, save_txt, imgsz, evaluate, half = \
         opt.output, opt.source, opt.yolo_weights, opt.deep_sort_weights, opt.show_vid, opt.save_vid, \
             opt.save_txt, opt.imgsz, opt.evaluate, opt.half
@@ -187,12 +191,29 @@ def detect(opt):
                 outputs = deepsort.update(xywhs.cpu(), confs.cpu(), clss.cpu(), im0)
                 
                 # draw boxes for visualization
+                bbox_array = BoundingBoxIXYWHArray()
                 if len(outputs) > 0:
                     for j, (output, conf) in enumerate(zip(outputs, confs)): 
-                        
+                        bbox = BoundingBoxIXYWH()
+
                         bboxes = output[0:4]
                         id = output[4]
                         cls = output[5]
+                        #bbox_left = output[0]
+                        #bbox_top = output[1]
+                        #bbox_w = output[2] - output[0]
+                        #bbox_h = output[3] - output[1]
+                        #print(id, bbox_left, bbox_top, bbox_w, bbox_h)
+                        
+                        bbox.i = output[4]
+                        bbox.x = output[0]
+                        bbox.y = output[1]
+                        bbox.w = output[2]-output[0]
+                        bbox.h = output[3]-output[1]
+                        bbox_array.boxes.append(bbox)
+
+                        
+
 
                         c = int(cls)  # integer class
                         label = f'{id} {names[c]} {conf:.2f}'
@@ -208,6 +229,10 @@ def detect(opt):
                             with open(txt_path, 'a') as f:
                                f.write(('%g ' * 10 + '\n') % (frame_idx + 1, id, bbox_left,
                                                            bbox_top, bbox_w, bbox_h, -1, -1, -1, -1))  # label format
+
+                if not rospy.is_shutdown():
+                    pub.publish(bbox_array)
+                    rospy.loginfo(bbox_array)
 
             else:
                 deepsort.increment_ages()
@@ -231,57 +256,6 @@ def detect(opt):
         print(f"Results saved to {colorstr('bold', save_dir)}{s}")
         if platform == 'darwin':  # MacOS
             os.system('open ' + save_path)
-
-
-
-
-
-
-"""
-def main(args):
-	rospy.init_node('MLNode', anonymous=False)
-	
-	imgCvter = ImgCvter()
-
-	pub = rospy.Publisher('asd', Int16, queue_size=10)
-	rate = rospy.Rate(1)
-	pub_msg = Int16()
-	count = 20
-  
-	while not rospy.is_shutdown():
-		pub_msg.data = count
-		pub.publish(pub_msg)
-		rospy.loginfo(rospy.get_caller_id() + 'Publish : %d' % pub_msg.data)
-		rate.sleep()
-
-	cv2.destroyWindow()
-"""
-
-
-
-
-
-"""
-def main(args):
-	rospy.init_node('MLNode', anonymous=False)
-	
-	imgCvter = ImgCvter()
-
-	pub = rospy.Publisher('asd', Int16, queue_size=10)
-	rate = rospy.Rate(1)
-	pub_msg = Int16()
-	count = 20
-  
-	while not rospy.is_shutdown():
-		pub_msg.data = count
-		pub.publish(pub_msg)
-		rospy.loginfo(rospy.get_caller_id() + 'Publish : %d' % pub_msg.data)
-		rate.sleep()
-
-	cv2.destroyWindow()
-"""
-
-
 
 
 
@@ -369,24 +343,6 @@ class LoadStreams:
             self.__cvImg[0] = self.__cvImg[0].byteswap().newbyteorder()
         #self.__cvImg[0] = self.__cvImg[0][:,:,::-1]
 
-"""
-    def update(self, i, stream):
-        # Read stream `i` frames in daemon thread
-        n, f, read = 0, self.frames[i], 1  # frame number, frame array, inference every 'read' frame
-        while cap.isOpened() and n < f:
-            n += 1
-            # _, self.imgs[index] = cap.read()
-            cap.grab()
-            if n % read == 0:
-                success, im = cap.retrieve()
-                if success:
-                    self.imgs[i] = im
-                else:
-                    LOGGER.warning('WARNING: Video stream unresponsive, please check your IP camera connection.')
-                    self.imgs[i] *= 0
-                    cap.open(stream)  # re-open stream if signal was lost
-            time.sleep(1 / self.fps[i])  # wait time
-"""
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -420,6 +376,5 @@ if __name__ == '__main__':
     with torch.no_grad():
         rospy.init_node('MLNode', anonymous=False)
         detect(opt)
-
 
 
