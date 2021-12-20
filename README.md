@@ -21,9 +21,11 @@ I set the image resolution to 848*480, you need to change this to use it.
 
 Detect data is delivered in the form of BoundingBoxIXYWHArray. node name : detect_results
 
+
 BoundingBoxIXYWHArray.msg
 
-kanu_msgs/BoundingBoxIXYWH[] boxes :
+kanu_msgs/BoundingBoxIXYWH[] boxes
+
 
 BoundingBoxIXYWH.msg :
 
